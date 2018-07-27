@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+<!--Titulo de la página-->
+<title>Aplicacion Control Philips Hue</title>
+
+<!--Lenguaje de caracteres-->
+<meta charset="utf-8">
+
+<!--Scripts del framework Vue y Axios-->
+<script src="http://unpkg.com/vue"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<link rel="stylesheet" type="text/css" href="css/estilos.css"/> 
+</head>
+
+<body>
+<!-- Titulo de la aplicación-->
+<h3 class="title" id="nombreVivienda">Luces Hue</h3>
+<br><br>
+
+<!--Bloque inyección app vue-->
+<div id="app" class="contenedorhue">
+<div v-for="item, key in luces" class="elementobombilla">
+<img v-bind:src="comprobar(item)" v-on:click="accionar(item, key)" class="bulbimagen">
+<h5>{{item.name}}</h5>
+<h5 >{{formatoPorcentaje(item.state.bri)}} %</h5>
+<input type="submit" value="Modo Emergencia" class="btnform" v-on:click="mododisco(item,key)"></input><br><br>
+<input type="range" min="0" max="254" class="slider" v-on:click ="modificarIntensidad(intensidad.bri[key],key,item)" v-model.number="intensidad.bri[key]" :disabled="isHue(item)"/>
+</div>
+</div>
+<!--Footer-->
+<div id="footer">
+<br>
+<h5>Aplicacion Desarrollada por Raúl Ordás Fernández</h5>
+</div>
+</body>
+</html>
+
+<!--Funcionalidad Vue-->
+<script>
+var vue = new Vue({
+	el: '#app',
+	
+	data: {
+		ipbridge: '192.168.1.105',
+		usuario: 'rLxWft-B7F8AaqNDEqZZHsw-unGHxvTd9SOpMoRk',
+		luces: {},
+		msg: 'No se han podido analizar las luces de la vivienda',
+		imagenOff: 'assets/LOFF.svg',
+		imagenOn: 'assets/LON.svg',
+		clavesLoop: [],
+		accionesLoop: [],
+		intensidad: { 
+			bri: []
+		},
+		
+		intensidadAux: {
+			bri: 0
+		},
+		
+		nombreVivienda: ''
+	},
+	
+	mounted() {
+		this.nombreVivienda = prompt("¿En que vivienda te encuentras ahora?");
+		document.getElementById("nombreVivienda").innerHTML = 'Luces Hue ' + this.nombreVivienda;
+		
+		setInterval(()=> {
+			axios.get('http://' + this.$data.ipbridge + '/api/' + this.$data.usuario + '/lights')
+			
+			.then(response=> {
+				this.$data.luces = response.data
+			})
+			
+			.catch(error=> {
+				alert(this.$data.msg);
+			})
+		},1000)
+	},
+	
+	methods: {
+	
+		comprobar: 
+			function(item) {
+				if (item.state.on == true) {
+					return this.imagenOn
+				} else {
+					return this.imagenOff
+				}
+			},
+			
+		accionar:
+			function(item, key) {
+				
+				if (item.state.on == true) {
+					axios.put('http://' + this.$data.ipbridge + '/api/' + this.$data.usuario + '/lights/' + key + '/state', {"on":false})
+			
+					.catch(error=> {
+						alert("No se ha podido cambiar el estado de la luz");
+				
+					})
+				
+					
+				} else {
+					axios.put('http://' + this.$data.ipbridge + '/api/' + this.$data.usuario + '/lights/' + key + '/state', {"on":true})
+					
+					.catch(error=> {
+						alert("No se ha podido cambiar el estado de la luz");
+					})
+				}
+			},
+		
+		mododisco: 
+			function(item, key) {
+				
+				if(!this.clavesLoop.includes(key)) {
+					this.clavesLoop.push(key);
+					this.accionesLoop[key] = (setInterval(()=> {
+					
+						if (this.luces[key].state.on == true) {
+							axios.put('http://' + this.$data.ipbridge + '/api/' + this.$data.usuario + '/lights/' + key + '/state', {"on":false})
+			
+							.catch(error=> {
+								alert("No se ha podido cambiar el estado de la luz");
+							})
+				
+					
+						} else {
+							axios.put('http://' + this.$data.ipbridge + '/api/' + this.$data.usuario + '/lights/' + key + '/state', {"on":true})
+					
+							.catch(error=> {
+								alert("No se ha podido cambiar el estado de la luz");
+							})
+						}
+					} ,500)) 
+				
+				} else {
+					this.clavesLoop[this.clavesLoop.indexOf(key)] = null;
+					clearInterval(this.accionesLoop[key]);	
+				}	
+			},
+			
+		modificarIntensidad:
+			function(intensidad, key, item) {
+				this.intensidadAux.bri = intensidad;
+
+				if (item.state.on == true) {
+					axios.put('http://' + this.$data.ipbridge + '/api/' + this.$data.usuario + '/lights/' + key + '/state', this.intensidadAux)
+					
+					.catch(error=> {
+						alert("No se ha podido cambiar el estado de la luz");
+				
+					})
+				} else {
+					alert("Es poco util cambiar la intensidad de una luz apagada...")
+				}
+			},
+		
+		isHue:
+			function(item) {
+				
+				if(!item.state.bri) {
+					return true;
+				} else {
+					return false;
+				}
+			},
+		
+		formatoPorcentaje:
+			function(lumens) {
+				return parseInt(lumens * 100/254);
+			}
+	}
+})
+</script>
